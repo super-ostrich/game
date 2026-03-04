@@ -2,10 +2,10 @@
 <html lang="fi">
 <head>
     <meta charset="UTF-8">
-    <title>JS Geometry Dash - Reilu Haaste</title>
+    <title>JS Bouncy Ball - Reilu Haaste</title>
     <style>
-        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #222; font-family: sans-serif; overflow: hidden; }
-        canvas { background: #3498db; border: 4px solid #fff; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #222; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        canvas { background: #3498db; border: 4px solid #fff; box-shadow: 0 0 20px rgba(0,0,0,0.5); border-radius: 8px; }
     </style>
 </head>
 <body>
@@ -16,21 +16,28 @@
 
         let score = 0;
         let gameOver = false;
-        let gameSpeed = 6;
-        let spawnTimer = 0;
+        let gameSpeed = 4.5; // Aloitetaan hitaammin (aiemmin 6)
+        let spawnTimer = 100; // Alussa pidempi tauko
 
-        const gravity = 0.6;
-        const player = { x: 100, y: 330, width: 40, height: 40, dy: 0, jumpForce: -12, onGround: false };
+        const gravity = 0.55; // Hieman kevyempi painovoima
+        const player = { 
+            x: 150, 
+            y: 330, 
+            radius: 20, 
+            dy: 0, 
+            jumpForce: -11, 
+            onGround: false 
+        };
         const obstacles = [];
 
         function spawnObstacle() {
-            // Arvotaan korkeus, mutta pidetään leveys vakiona
-            const height = 40 + Math.random() * 30;
-            obstacles.push({ x: canvas.width, width: 30, height: height });
+            const height = 30 + Math.random() * 30; // Alussa matalampia esteitä
+            obstacles.push({ x: canvas.width, width: 25, height: height });
             
-            // Lasketaan minimietäisyys seuraavaan esteeseen (vähintään 120px + nopeuskerroin)
-            // Tämä estää mahdottomat tuplat ja liian tiheät jonot
-            spawnTimer = Math.floor(50 + Math.random() * 40); 
+            // Spawn-väli on alussa suuri, mutta pienenee kun pisteitä kertyy
+            // Varmistaa, ettei tule mahdottomia välejä
+            let minGap = 40 + (100 / (1 + score * 0.1)); 
+            spawnTimer = Math.floor(minGap + Math.random() * 50); 
         }
 
         function jump() { 
@@ -47,8 +54,8 @@
         function resetGame() { 
             obstacles.length = 0; 
             score = 0; 
-            gameSpeed = 6;
-            spawnTimer = 0;
+            gameSpeed = 4.5;
+            spawnTimer = 100;
             player.y = 330; 
             player.dy = 0; 
             gameOver = false; 
@@ -58,36 +65,39 @@
         function update() {
             if (gameOver) return;
 
-            // Pelaajan fysiikka
             player.dy += gravity; 
             player.y += player.dy;
 
-            if (player.y > 330) { 
-                player.y = 330; 
+            // Pallo osuu maahan (370 on lattian yläreuna, vähennetään säde)
+            if (player.y > 370 - player.radius) { 
+                player.y = 370 - player.radius; 
                 player.dy = 0; 
                 player.onGround = true; 
             }
 
-            // Esteiden hallinta
             spawnTimer--;
             if (spawnTimer <= 0) {
                 spawnObstacle();
             }
 
-            // Pelin vaikeutuminen (nopeus nousee hitaasti)
-            gameSpeed = 6 + (score * 0.1);
+            // Nopeus kasvaa hitaammin
+            gameSpeed = 4.5 + (score * 0.08);
 
             for (let i = obstacles.length - 1; i >= 0; i--) {
                 obstacles[i].x -= gameSpeed;
 
-                // Törmäystarkistus (hieman armollisempi hitbox)
-                if (player.x + 5 < obstacles[i].x + obstacles[i].width && 
-                    player.x + player.width - 5 > obstacles[i].x && 
-                    player.y + player.height > 370 - obstacles[i].height) { 
-                    gameOver = true; 
+                // Pallon ja suorakulmion välinen törmäys
+                let closestX = Math.max(obstacles[i].x, Math.min(player.x, obstacles[i].x + obstacles[i].width));
+                let closestY = Math.max(370 - obstacles[i].height, Math.min(player.y, 370));
+                
+                let distanceX = player.x - closestX;
+                let distanceY = player.y - closestY;
+                let distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+
+                if (distanceSquared < (player.radius * player.radius)) {
+                    gameOver = true;
                 }
 
-                // Poista menneet esteet ja lisää pisteitä
                 if (obstacles[i].x + obstacles[i].width < 0) { 
                     obstacles.splice(i, 1); 
                     score++; 
@@ -105,33 +115,39 @@
             ctx.fillStyle = "#2c3e50"; 
             ctx.fillRect(0, 370, canvas.width, 30);
             
-            // Pelaaja
-            ctx.fillStyle = "#f1c40f"; 
-            ctx.fillRect(player.x, player.y, player.width, player.height);
+            // Pallo (pelaaja)
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fillStyle = "#f1c40f";
+            ctx.fill();
+            // Lisätään palloon pieni kiilto, jotta se näyttää 3D-mäisemmältä
+            ctx.beginPath();
+            ctx.arc(player.x - 5, player.y - 5, 5, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255,255,255,0.4)";
+            ctx.fill();
+            ctx.closePath();
             
-            // Esteet
+            // Esteet (piikit/palikat)
             ctx.fillStyle = "#e74c3c"; 
             obstacles.forEach(o => { 
                 ctx.fillRect(o.x, 370 - o.height, o.width, o.height); 
             });
 
-            // Käyttöliittymä
+            // UI
             ctx.fillStyle = "#fff"; 
-            ctx.font = "bold 20px Arial"; 
+            ctx.font = "bold 22px Arial"; 
             ctx.textAlign = "left";
             ctx.fillText("Pisteet: " + score, 20, 40);
-            ctx.font = "14px Arial";
-            ctx.fillText("Nopeus: " + gameSpeed.toFixed(1), 20, 65);
 
             if (gameOver) { 
-                ctx.fillStyle = "rgba(0,0,0,0.7)"; 
+                ctx.fillStyle = "rgba(0,0,0,0.75)"; 
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = "#fff"; 
                 ctx.textAlign = "center"; 
-                ctx.font = "30px Arial";
-                ctx.fillText("PELI OHI!", canvas.width/2, canvas.height/2 - 20);
+                ctx.font = "34px Arial";
+                ctx.fillText("HÄVISIT!", canvas.width/2, canvas.height/2 - 20);
                 ctx.font = "20px Arial";
-                ctx.fillText("Klikkaa tai Space aloittaaksesi alusta.", canvas.width/2, canvas.height/2 + 30);
+                ctx.fillText("Pisteet: " + score + " - Paina Space aloittaaksesi.", canvas.width/2, canvas.height/2 + 30);
             }
         }
 
